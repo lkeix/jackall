@@ -23,16 +23,60 @@ type Indicate struct {
 	mp map[token.Pos]bool
 }
 
+type file struct {
+	name          string
+	dependencyIn  int64
+	dependencyOut int64
+}
+
+type files []*file
+
+func (fs files) contains(target string) bool {
+	for _, f := range fs {
+		if f.name == target {
+			return true
+		}
+	}
+	return false
+}
+
+type packages map[string]files
+
+var pkgs = make(packages)
+
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspect, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	if !ok {
 		panic("failed to convert inspect Analyzer to Inspector")
 	}
 
-	for _, file := range pass.Files {
-		fmt.Printf("dependence package of %s\n", file.Name)
-		for _, imprt := range file.Imports {
+	fset := pass.Fset
+
+	for _, f := range pass.Files {
+		fmt.Printf("dependence package of %s\n", fset.File(f.Pos()).Name())
+
+		fout := int64(0)
+		for _, imprt := range f.Imports {
+
 			fmt.Printf("\t%s\n", imprt.Path.Value)
+			fout++
+		}
+
+		if _, ok := pkgs[f.Name.Name]; !ok {
+			pkgs[f.Name.Name] = files{
+				{
+					name:          fset.File(f.Pos()).Name(),
+					dependencyIn:  0,
+					dependencyOut: fout,
+				},
+			}
+		} else {
+			pkg := pkgs[f.Name.Name]
+			pkg = append(pkg, &file{
+				name:          fset.File(f.Pos()).Name(),
+				dependencyIn:  0,
+				dependencyOut: fout,
+			})
 		}
 	}
 
@@ -41,6 +85,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return true
 	})
 
+	fmt.Println(pkgs)
 	return nil, nil
 }
 
