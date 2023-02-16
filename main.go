@@ -29,7 +29,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		panic("failed to convert inspect Analyzer to Inspector")
 	}
 
-	fmt.Println(pass.AllPackageFacts)
+	for _, file := range pass.Files {
+		fmt.Printf("dependence package of %s\n", file.Name)
+		for _, imprt := range file.Imports {
+			fmt.Printf("\t%s\n", imprt.Path.Value)
+		}
+	}
 
 	inspect.Nodes(nil, func(n ast.Node, push bool) bool {
 		calculateDepenedencyEachPackages(n)
@@ -37,6 +42,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	return nil, nil
+}
+
+func calculatePackageLevelDepenedencyEachPackages() {
+
 }
 
 func calculateDepenedencyEachPackages(n ast.Node) {
