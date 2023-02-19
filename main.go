@@ -2,22 +2,12 @@ package jackall
 
 import (
 	"fmt"
-	"go/ast"
 	"go/token"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/go/analysis/singlechecker"
 )
-
-var Analyzer = &analysis.Analyzer{
-	Name: "Jackall",
-	Doc:  "Jackall calculate degree of dependency each packages",
-	Run:  run,
-	Requires: []*analysis.Analyzer{
-		inspect.Analyzer,
-	},
-}
 
 type Indicate struct {
 	mp map[token.Pos]bool
@@ -44,54 +34,66 @@ type packages map[string]files
 
 var pkgs = make(packages)
 
-func run(pass *analysis.Pass) (interface{}, error) {
-	inspect, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	if !ok {
-		panic("failed to convert inspect Analyzer to Inspector")
+func Run() {
+	mapper := &dependencyMapper{
+		packages: make(map[string]files),
 	}
 
-	fset := pass.Fset
+	analyzer := &analysis.Analyzer{
+		Name: "Jackall",
+		Doc:  "Jackall calculate degree of dependency each packages",
+		Run:  wrapRun(mapper),
+		Requires: []*analysis.Analyzer{
+			inspect.Analyzer,
+		},
+	}
 
-	for _, f := range pass.Files {
-		fmt.Printf("dependence package of %s\n", fset.File(f.Pos()).Name())
+	singlechecker.Main(analyzer)
 
-		fout := int64(0)
-		for _, imprt := range f.Imports {
+}
 
-			fmt.Printf("\t%s\n", imprt.Path.Value)
-			fout++
-		}
+type dependencyMapper struct {
+	packages map[string]files
+}
 
-		if _, ok := pkgs[f.Name.Name]; !ok {
-			pkgs[f.Name.Name] = files{
-				{
+// wrapRun bind import dependency for arguments struct
+func wrapRun(deps *dependencyMapper) func(pass *analysis.Pass) (interface{}, error) {
+	return func(pass *analysis.Pass) (interface{}, error) {
+		// inspect, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+		// if !ok {
+		// 	panic("failed to convert inspect Analyzer to Inspector")
+		// }
+
+		fset := pass.Fset
+
+		for _, f := range pass.Files {
+			fmt.Printf("dependence package of %s\n", fset.File(f.Pos()).Name())
+
+			fout := int64(0)
+			for _, imprt := range f.Imports {
+
+				fmt.Printf("\t%s\n", imprt.Path.Value)
+				fout++
+			}
+
+			if _, ok := pkgs[f.Name.Name]; !ok {
+				pkgs[f.Name.Name] = files{
+					{
+						name:          fset.File(f.Pos()).Name(),
+						dependencyIn:  0,
+						dependencyOut: fout,
+					},
+				}
+			} else {
+				pkg := pkgs[f.Name.Name]
+				pkg = append(pkg, &file{
 					name:          fset.File(f.Pos()).Name(),
 					dependencyIn:  0,
 					dependencyOut: fout,
-				},
+				})
 			}
-		} else {
-			pkg := pkgs[f.Name.Name]
-			pkg = append(pkg, &file{
-				name:          fset.File(f.Pos()).Name(),
-				dependencyIn:  0,
-				dependencyOut: fout,
-			})
 		}
+
+		return nil, nil
 	}
-
-	inspect.Nodes(nil, func(n ast.Node, push bool) bool {
-		calculateDepenedencyEachPackages(n)
-		return true
-	})
-
-	fmt.Println(pkgs)
-	return nil, nil
-}
-
-func calculatePackageLevelDepenedencyEachPackages() {
-
-}
-
-func calculateDepenedencyEachPackages(n ast.Node) {
 }
