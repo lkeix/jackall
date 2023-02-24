@@ -2,40 +2,62 @@ package jackall
 
 import (
 	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
-type file struct {
-	name          string
-	dependencyIn  int64
-	dependencyOut int64
+type dependenceVec struct {
+	from string
+	to   string
 }
 
-type files []*file
+type dependencePair struct {
+	in  int
+	out int
+}
 
-func (fs files) contains(target string) bool {
-	for _, f := range fs {
-		if f.name == target {
-			return true
+type dependenceVecs []*dependenceVec
+
+func (d dependenceVecs) extractVecEachPackage() map[string]*dependencePair {
+	mp := make(map[string]*dependencePair)
+	for _, vec := range d {
+		p, ok := mp[vec.from]
+		if !ok {
+			p = &dependencePair{
+				in:  0,
+				out: 0,
+			}
 		}
+
+		p.out++
+		mp[vec.from] = p
+
+		p, ok = mp[vec.to]
+		if !ok {
+			p = &dependencePair{
+				in:  0,
+				out: 0,
+			}
+		}
+
+		p.in++
+		mp[vec.to] = p
 	}
-	return false
+
+	return mp
 }
-
 func Run() {
-	mapper := &dependencyMapper{
-		packages: make(map[string]files),
-	}
+	vec := make(dependenceVecs, 0)
 
-	fmt.Println("aaaaa")
-	fmt.Println(mapper)
 	analyzer := &analysis.Analyzer{
 		Name: "Jackall",
 		Doc:  "Jackall calculate degree of dependency each packages",
-		Run:  wrapRun(mapper),
+		Run:  wrapRun(&vec),
 		Requires: []*analysis.Analyzer{
 			inspect.Analyzer,
 		},
@@ -43,50 +65,42 @@ func Run() {
 
 	singlechecker.Main(analyzer)
 
-	fmt.Println("hogehoge")
-	fmt.Println(mapper)
-}
+	res := vec.extractVecEachPackage()
+	for name, r := range res {
+		fmt.Printf("degree of dependency in %s package: %.4f\n", name, float64(r.out)/float64(r.in+r.out))
+	}
 
-type packages map[string]files
-
-type dependencyMapper struct {
-	packages map[string]files
+	fmt.Printf("the closer degree of dependency is 1, the more stable package is\n")
+	fmt.Printf("the closer degree of dependency is 0, the less stable(unstable) package is\n")
 }
 
 // wrapRun bind import dependency for arguments struct
-func wrapRun(deps *dependencyMapper) func(pass *analysis.Pass) (interface{}, error) {
+func wrapRun(vec *dependenceVecs) func(pass *analysis.Pass) (interface{}, error) {
 	return func(pass *analysis.Pass) (interface{}, error) {
-		fset := pass.Fset
+		// fset := pass.Fset
 
 		for _, f := range pass.Files {
-			fmt.Printf("dependence package of %s\n", fset.File(f.Pos()).Name())
-
-			fout := int64(0)
 			for _, imprt := range f.Imports {
-
-				fmt.Printf("\t%s\n", imprt.Path.Value)
-				fout++
-			}
-
-			if _, ok := deps.packages[f.Name.Name]; !ok {
-				deps.packages[f.Name.Name] = files{
-					{
-						name:          fset.File(f.Pos()).Name(),
-						dependencyIn:  0,
-						dependencyOut: fout,
-					},
-				}
-			} else {
-				pkg := deps.packages[f.Name.Name]
-				pkg = append(pkg, &file{
-					name:          fset.File(f.Pos()).Name(),
-					dependencyIn:  0,
-					dependencyOut: fout,
+				name := extractImportPackageName(imprt.Path.Value)
+				*vec = append(*vec, &dependenceVec{
+					from: f.Name.Name,
+					to:   name,
 				})
-				deps.packages[f.Name.Name] = pkg
 			}
 		}
 
 		return nil, nil
 	}
+}
+
+func extractImportPackageName(path string) string {
+	path = strings.ReplaceAll(path, "\"", "")
+
+	reg := regexp.MustCompile(`\/v\d+`)
+	if pkgVer := reg.FindString(path); pkgVer != "" {
+		path = strings.ReplaceAll(path, pkgVer, "")
+	}
+
+	_, pkg := filepath.Split(path)
+	return pkg
 }
