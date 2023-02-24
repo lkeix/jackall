@@ -70,8 +70,8 @@ func Run() {
 		fmt.Printf("degree of dependency in %s package: %.4f\n", name, float64(r.out)/float64(r.in+r.out))
 	}
 
-	fmt.Printf("the closer degree of dependency is 1, the more stable package is\n")
-	fmt.Printf("the closer degree of dependency is 0, the less stable(unstable) package is\n")
+	fmt.Printf("the closer degree of dependency is 1, the less stable(unstable) package is\n")
+	fmt.Printf("the closer degree of dependency is 0, the more stable package is\n")
 }
 
 // wrapRun bind import dependency for arguments struct
