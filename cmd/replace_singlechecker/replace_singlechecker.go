@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,8 @@ import (
 	"os"
 
 	"path/filepath"
+
+	_ "golang.org/x/tools/go/analysis/singlechecker"
 )
 
 //go:embed _partials/replace_singlechecker.go
