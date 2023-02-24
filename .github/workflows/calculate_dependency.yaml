@@ -1,0 +1,24 @@
+name: calculate degree of dependency for testdata
+
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  calculate:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: setup
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: checkout
+        uses: actions/checkout@3
+
+      - name: calculate
+        run: |
+          sh ./exec.sh
