@@ -2,16 +2,11 @@ package jackall
 
 import (
 	"fmt"
-	"go/token"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
-
-type Indicate struct {
-	mp map[token.Pos]bool
-}
 
 type file struct {
 	name          string
@@ -30,15 +25,13 @@ func (fs files) contains(target string) bool {
 	return false
 }
 
-type packages map[string]files
-
-var pkgs = make(packages)
-
 func Run() {
 	mapper := &dependencyMapper{
 		packages: make(map[string]files),
 	}
 
+	fmt.Println("aaaaa")
+	fmt.Println(mapper)
 	analyzer := &analysis.Analyzer{
 		Name: "Jackall",
 		Doc:  "Jackall calculate degree of dependency each packages",
@@ -50,7 +43,11 @@ func Run() {
 
 	singlechecker.Main(analyzer)
 
+	fmt.Println("hogehoge")
+	fmt.Println(mapper)
 }
+
+type packages map[string]files
 
 type dependencyMapper struct {
 	packages map[string]files
@@ -59,11 +56,6 @@ type dependencyMapper struct {
 // wrapRun bind import dependency for arguments struct
 func wrapRun(deps *dependencyMapper) func(pass *analysis.Pass) (interface{}, error) {
 	return func(pass *analysis.Pass) (interface{}, error) {
-		// inspect, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-		// if !ok {
-		// 	panic("failed to convert inspect Analyzer to Inspector")
-		// }
-
 		fset := pass.Fset
 
 		for _, f := range pass.Files {
@@ -76,8 +68,8 @@ func wrapRun(deps *dependencyMapper) func(pass *analysis.Pass) (interface{}, err
 				fout++
 			}
 
-			if _, ok := pkgs[f.Name.Name]; !ok {
-				pkgs[f.Name.Name] = files{
+			if _, ok := deps.packages[f.Name.Name]; !ok {
+				deps.packages[f.Name.Name] = files{
 					{
 						name:          fset.File(f.Pos()).Name(),
 						dependencyIn:  0,
@@ -85,12 +77,13 @@ func wrapRun(deps *dependencyMapper) func(pass *analysis.Pass) (interface{}, err
 					},
 				}
 			} else {
-				pkg := pkgs[f.Name.Name]
+				pkg := deps.packages[f.Name.Name]
 				pkg = append(pkg, &file{
 					name:          fset.File(f.Pos()).Name(),
 					dependencyIn:  0,
 					dependencyOut: fout,
 				})
+				deps.packages[f.Name.Name] = pkg
 			}
 		}
 
