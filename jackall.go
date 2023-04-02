@@ -54,6 +54,16 @@ func (d dependenceVecs) filter(pkgs []string) dependenceVecs {
 	return res
 }
 
+func (d dependenceVecs) deps(name string) []string {
+	res := []string{}
+	for _, p := range d {
+		if p.from == name {
+			res = append(res, p.to)
+		}
+	}
+	return res
+}
+
 func (d dependenceVecs) extractVecEachPackage() map[string]*dependencePair {
 	mp := make(map[string]*dependencePair)
 	for _, vec := range d {
@@ -108,8 +118,27 @@ func Run() {
 	}
 
 	res := vec.extractVecEachPackage()
+	deps := make(map[string]float64)
 	for name, r := range res {
 		fmt.Printf("degree of dependency in %s package: %.4f\n", name, float64(r.out)/float64(r.in+r.out))
+		deps[name] = float64(r.out) / float64(r.in+r.out)
+	}
+
+	for name, rate := range deps {
+		dependencyList := vec.deps(name)
+		existIllegalDep := false
+		warnStringBuilder := &strings.Builder{}
+		warnStringBuilder.WriteString(fmt.Sprintf("detect illegal dependency at %s\n", name))
+		for _, p := range dependencyList {
+			if rate < deps[p] {
+				existIllegalDep = true
+				warnStringBuilder.WriteString(fmt.Sprintf("\tdegree of dependency is more than %s\n", p))
+			}
+		}
+
+		if existIllegalDep {
+			fmt.Printf("%s", warnStringBuilder.String())
+		}
 	}
 
 	fmt.Printf("the closer degree of dependency is 1, the less stable(unstable) package is\n")
